@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Missing Data in R</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Asmae Toumi" />
+    <meta name="date" content="2020-07-30" />
+    <link rel="stylesheet" href="xaringan-themer.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Missing Data in R
+## Coast to Coast useR Meetup
+### Asmae Toumi
+### 2020-07-30
+
+---
+
+
+
+
+
+# CAUSES AND CONSEQUENCES OF MISSING DATA
+
+- `Causes`: 
+  - Participant skipped the question
+  - Participant refuses to cooperate
+  - Data/coding error 
+  - Drop outs from longitudinal research 
+  - Question not asked
+  - Censoring
+
+- `Consequences`:
+  - Less data than planned
+  - Insufficient statistical power
+  - Inconsistent sample sizes across analyses
+  - Difficulty calculating even the most simple summary statistics
+  - Difficulty determining appropriate confidence interval, p-values  
+  - Systematic biases in the analysis 
+
+**In sum, missing data can render analysis and interpretation difficult or impossible when unaddressed**
+
+---
+class: center, middle
+
+# IMPUTING MISSING DATA
+
+---
+
+# MISSING DATA ASSUMPTIONS
+
+According to Rubin (1976), there are 3 types of missing data assumptions:
+
+- `MCAR`: Missing Completely at Random
+
+Missing data is at random and the *pattern* of missing values is not related to the structure of the data. 
+
+- `MAR`: Missing at Random
+
+Missing data is not completely random and the probability of missingness relies on the observed data, not the missing data. 
+
+- `MNAR`: Missing Not at Random
+
+The missing data is not random and it's associated with factors that are unobservable and unknown to the analyst.
+
+---
+
+# OPTIONS YOU CAN TAKE 
+
+- `List-wise deletion` 
+
+  - Also called Complete Case Analysis (CCA)
+  - Lose statistical power 
+  - Large standard errors
+
+- `Mean/median substitution`
+
+  - Disturbs the distribution
+  - Underestimates the variance 
+
+---
+
+# A BETTER OPTION
+
+- `Multiple Imputation`
+
+  - Accounts for the uncertainty around the "true" value
+  - Obtains approximately unbiased estimates
+  - Flexible to data type and analysis
+
+The assumption is that **missing values can be imputed using predictions derived by the observable portion of the dataset**. 
+
+If this assumption is not met, missing data cannot be imputed using multiple imputation. 
+
+---
+
+# APPROACHES TO MULTIPLE IMPUTATION
+
+- `Joint Multivariate Normal Distribution Multiple Imputation`: 
+  - Assumption: observed data follows a multivariate normal distribution
+  - Disadvantage: if the data doesn't follow a the above distribution, the imputed values will be incorrect
+  - 2 packages do this: `Amelia` and `norm`
+
+- `Conditional Multiple Imputation`: 
+  - Follows an iterative procedure, modeling the conditional distribution of a certain variable given the other variables 
+  - Advantage: flexible because a distribution is assumed for **each** variable as opposed to the whole dataset 
+    - `mice` does this (van Buuren, 2011)
+
+---
+
+# MICE
+
+`mice` package computes missing data in 3 steps: mids (*multiply imputed data*), mira (*multiply imputed repeated analysis*) and mipo (*multiply imputed pooled object*)
+
+
+![](steps_mice.png)
+
+--- 
+
+# STEPS IN MICE 
+
+`mice()` command assumes the specific distribution of the missing variable and draws from that distribution in order to replace missing values with possible values. Multiple complete datasets get generated, called **mids** which stands for **multiply imputed dataset**
+
+`with()` command runs regressions for each complete dataset, generating `n` sets of coefficients. These analysis results are stored in an object of class **mira** which stands for **multiply imputed repeated analysis**
+
+`pool()` command takes the mean of the `n` regression coefficients and estimates the variance (within and between the complete datasets)
+
+---
+
+class: center, middle
+
+# PRACTICAL APPLICATION OF MICE
+
+See `Practice.Rmd`
+
+---
+
+# Roadblocks  
+
+- Violation of assumptions
+
+- Too much missing data
+
+- Wrong method in imputation
+
+- High multicollinearity
+
+
+`In conclusion, missing data imputation is a powerful method but it can be  hard to implement correctly.`
+
+---
+
+# RECAP OF NANIAR'S SUITE OF VISUALIZATIONS
+
+- Shadow matrices, a tidy data structure for missing data:
+  - `bind_shadow()`
+  - `nabular()`
+- Shorthand summaries for missing data:
+  - `n_miss()`
+  - `n_complete()`
+  - `pct_miss()`
+  - `pct_complete()`
+- Numerical summaries of missing data in variables and cases:
+  - `miss_var_summary()`
+  - `miss_var_table()`
+  - `miss_case_summary()`
+  - `miss_case_table()`
+- Visualisation for missing data:
+  - `geom_miss_point()`
+  - `gg_miss_var()`
+  - `gg_miss_case()`
+  - `gg_miss_fct()`
+  
+---
+
+# REFERENCES
+
+- Naniar package: https://github.com/njtierney/naniar
+- Gallery of missing data visualizations: https://cran.r-project.org/web/packages/naniar/vignettes/naniar-visualisation.html 
+- Van Buuren's course materials: https://stefvanbuuren.name/Winnipeg/Lectures/Winnipeg.pdf
+- Vignettes for the `mice` package: 
+  - (I): https://stefvanbuuren.name/Winnipeg/Practicals/Practical_I.html
+  - (II): https://stefvanbuuren.name/Winnipeg/Practicals/Practical_II.html
+  - (III): https://stefvanbuuren.name/Winnipeg/Practicals/Practical_III.html
+  - (IV): https://stefvanbuuren.name/Winnipeg/Practicals/Practical_IV.html 
+- Getting Started with Multiple Imputation in R, University of Virginia StatLab: https://uvastatlab.github.io/2019/05/01/getting-started-with-multiple-imputation-in-r/
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightLines": true
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

@@ -1,0 +1,214 @@
+---
+title: "Practical Application of MICE"
+author: "Asmae Toumi"
+date:  " `r Sys.Date()` "
+output:
+  html_document:
+    css: xaringan-themer.css
+    toc: yes
+    toc_depth: 6
+    toc_float: no
+---
+
+# Exploration
+
+## Packages needed
+
+```{r eval = T, error = F, message = F}
+library(naniar) # for missing data viz
+library(tidyverse) # for data wrangling
+library(skimr) # for statistical summaries
+library(DT) # for nice tables 
+library(mice) # for missing data imputation
+
+set.seed(123) # for reproducibility 
+```
+
+## Riskfactors dataset
+
+The data is a subset of the 2009 survey from BRFSS (Behavioral Risk Factor Surveillance System), an ongoing data collection program designed to measure behavioral risk factors for the adult population (18 years of age or older) living in households.
+
+More information: https://www.rdocumentation.org/packages/naniar/versions/0.5.1/topics/riskfactors 
+
+
+```{r echo = F}
+DT::datatable(
+  head(naniar::riskfactors, 10),
+  fillContainer = FALSE, options = list(pageLength = 8)
+)
+```
+
+```{r}
+skim(riskfactors)
+```
+
+```{r}
+n_var_miss(riskfactors)
+```
+
+## Missingess patterns 
+
+```{r}
+gg_miss_upset(riskfactors)
+```
+
+The documentation on {naniar} says that the default option of `gg_miss_upset` is taken from UpSetR::upset - which is to use up to 5 sets and up to 40 interactions. 
+
+## Summaries
+
+### Visual summaries
+```{r}
+gg_miss_var(riskfactors)
+gg_miss_var(riskfactors, show_pct = TRUE)
+```
+
+```{r}
+gg_miss_var(riskfactors,
+            show_pct = T,
+            facet = sex)
+```
+
+```{r}
+gg_miss_fct(x = riskfactors, fct = marital)
+```
+
+### Data summaries 
+
+```{r}
+riskfactors %>%
+  group_by(marital) %>%
+  miss_var_summary() %>% 
+  DT::datatable()
+```
+
+
+# MICE
+
+## Motivation
+
+We want to assess the predictors of `health_physical`, a continuous variable corresponding to the number of days in the last 30 days for which the respondent said their physical health was good.
+
+Explanatory variables of interest include the ones related to diet as well as `health_poor`. If we were to run a Complete Case Analysis regression analysis, we'd effectively be throwing away nearly half our sample.
+
+
+## Preprocessing 
+
+```{r}
+riskfactors <- riskfactors %>% select(-c("pregnant", starts_with("smoke"), "drink_days", "drink_average"))
+```
+
+## Impute 
+
+- To perform imputations, you pass the dataset name to `mice()`. The default number of imputations is `m = 5`. 
+- the `quickpred()` can be passed on to the `pred` argument if the researcher is interested in quickly selecting predictors in datasets that contain many variables. The threshold for correlation can be specified with `mincor`.
+
+Here we select predictors with a minimum correlation of $\rho=.30$ :
+
+```{r}
+impute <- mice(riskfactors, 
+               m = 5, 
+               pred = quickpred(riskfactors, mincor = .3),
+               print = FALSE)
+```
+
+Checking the class of `impute`
+```{r}
+class(impute)
+```
+
+## Check the convergence 
+
+```{r}
+plot(impute)
+```
+
+The plot shows the mean (left) and standard deviation (right) of the imputed values only. In general, we would like the streams to intermingle and be free of any trends at the later iterations.
+
+## Check the method used 
+
+As the documentation shows (https://www.rdocumentation.org/packages/mice/versions/3.5.0/topics/mice), many methods can be specified for imputation. To check which one our algorithm chose:
+
+```{r}
+cbind(impute$meth)
+```
+
+Looks like the algorithm used predictive mean matching (`pmm`) for the numerical variables, and either polytomous regression (`polyreg`) for unordered categorical variables or logistic regression for the binary categorical variables (`logreg`) 
+
+We can also change the method. Let's use Bayesian linear regression - `norm` - for the bmi variable:
+
+```{r}
+meth <- impute$meth
+meth["bmi"] <- "norm"
+cbind(meth)
+```
+
+We must re-run the imputation:
+
+```{r error = F, message = F, warning= FALSE}
+impute <- mice(riskfactors, meth = meth, print = FALSE)
+```
+
+We can plot the trace lines again to see what the convergence looks like:
+
+```{r}
+plot(impute)
+```
+
+## Increase the number of imputations
+
+We've seen above that the lines do intermingle well, especially at the later iterations with just 5 iterations. Sometimes, it is useful to increase the number of iterations just to confirm that there is indeed no trend. We can increase the number of iterations to 20 by running 15 additional iterations using the `mice.mids()` function:
+
+```{r}
+impute_20 <- mice.mids(impute, maxit = 15, print = FALSE)
+plot(impute_20)
+```
+
+## Further diagnostic testing
+
+We can check our imputations for certain variables by comparing them to observed values - under the MCAR assumption, the imputations should indeed have the same distribution as the observed data. Under MAR, the distributions may be different but nevertheless very large differences warrant further investigation.
+
+- For `health_poor` days:
+```{r}
+stripplot(impute, health_poor ~ .imp, pch = 20, cex = 2)
+```
+
+- For `bmi`:
+```{r}
+stripplot(impute, bmi ~ .imp, pch = 20, cex = 2)
+```
+
+`bmi` was imputed with Bayesian linear regression and (the range of) imputed values looks a little different than the observed values but there is still overlap.
+
+##  Perform regression analysis and pool estimates
+
+Finally, we need to run the regression on each of the 5 datasets and pool the estimates together to get average regression coefficients and correct standard errors. The `with()` function in the mice package allows us to do this.
+
+```{r}
+fit <- with(impute, lm(health_physical ~ age + bmi + sex + marital + children + employment + health_mental + activity_limited + provide_care + health_poor + health_general + diet_vegetable + diet_salad + diet_potato + diet_juice + diet_fruit + diet_carrot))
+
+fit
+```
+
+The fit object contains the regression summaries for each data set. The new object fit is actually of class mira (multiply imputed repeated analyses). We can double-check:
+
+```{r}
+class(fit)
+```
+
+## Pool the analyses from object fit
+
+This is the last step, where we pool the estimates from all 5 complete datasets to get average regression coefficients and correct standard errors.
+```{r}
+pool.fit <- pool(fit)
+
+summary_poolfit <- as.data.frame(summary(pool.fit))
+
+summary_poolfit %>% DT::datatable()
+```
+
+```{r}
+class(pool.fit)
+```
+
+
+
